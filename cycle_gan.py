@@ -49,6 +49,9 @@ class Discriminator(nn.Module):
         # Output layer
         self.out = nn.Conv2d(self.conv_filters[-1], 1, kernel_size=(3, 3), stride=(1, 1), padding=(1, 1))
         
+        # Delete the item
+        del self.conv_filters[0]
+        
     def forward(self, x):
         # CNN
         for i in range(self.num_layers):
@@ -116,22 +119,22 @@ class UNet(nn.Module):
         x = F.relu(self.sample_norm64(self.enc_conv1_1(x)))
         x = F.relu(self.sample_norm64(self.enc_conv1_2(x)))
         res1 = x
-
+        
         x = self.maxpool(x)
         x = F.relu(self.sample_norm128(self.enc_conv2_1(x)))
         x = F.relu(self.sample_norm128(self.enc_conv2_2(x)))
         res2 = x
-
+        
         x = self.maxpool(x)
         x = F.relu(self.sample_norm256(self.enc_conv3_1(x)))
         x = F.relu(self.sample_norm256(self.enc_conv3_2(x)))
         res3 = x
-
+        
         x = self.maxpool(x)
         x = F.relu(self.sample_norm512(self.enc_conv4_1(x)))
         x = F.relu(self.sample_norm512(self.enc_conv4_2(x)))
         res4 = x
-
+        
         x = self.maxpool(x)
         x = F.relu(self.sample_norm1024(self.enc_conv5_1(x)))
         x = F.relu(self.sample_norm1024(self.enc_conv5_2(x)))
@@ -157,6 +160,6 @@ class UNet(nn.Module):
         x = F.relu(self.sample_norm64(self.dec_conv4_1(x)))
         x = F.relu(self.sample_norm64(self.dec_conv4_2(x)))
 
-        x = self.dec_conv5(x)
+        x = F.tanh(self.dec_conv5(x))
         
         return x

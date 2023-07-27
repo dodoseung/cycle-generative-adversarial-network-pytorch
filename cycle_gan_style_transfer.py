@@ -12,7 +12,7 @@ from collections import deque
 from utils import save_model, load_yaml
 
 # Set the configuration
-config = load_yaml("./config/gan_config.yml")
+config = load_yaml("./config/cycle_gan_config.yml")
 
 # Training setting
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -25,13 +25,13 @@ transform = transforms.Compose([transforms.ToTensor(),
                                 transforms.Resize(config['data']['img_size'])])
 
 # Set the data
-img_refer = plt.imread(config['data']['img_refer_path'])
-img_refer = transform(img_refer)
-img_refer = img_refer.to(device)
+imgA = plt.imread(config['data']['imgA_path'])
+imgA = transform(imgA)
+imgA = imgA.to(device)
 
-img_style = plt.imread(config['data']['img_style_path'])
-img_style = transform(img_style)
-img_style = img_style.to(device)
+imgB = plt.imread(config['data']['imgB_path'])
+imgB = transform(imgB)
+imgB = imgB.to(device)
 
 # Set the model
 model = CycleGAN(gen_input_dim=config['model']['gen_input_dim'], gen_output_dim=config['model']['gen_output_dim'],
@@ -42,115 +42,97 @@ model = CycleGAN(gen_input_dim=config['model']['gen_input_dim'], gen_output_dim=
 print(model, device)
 
 # Set the criterion and optimizer
-gxy_optimizer = optim.AdamW(model.Gxy.parameters(),
-                          lr=config['train']['lr'],
-                          betas=config['train']['betas'],
-                          eps=config['train']['eps'],
-                          weight_decay=config['train']['weight_decay'])
-gyx_optimizer = optim.AdamW(model.Gyx.parameters(),
-                          lr=config['train']['lr'],
-                          betas=config['train']['betas'],
-                          eps=config['train']['eps'],
-                          weight_decay=config['train']['weight_decay'])
-dx_optimizer = optim.AdamW(model.Dx.parameters(),
-                          lr=config['train']['lr'],
-                          betas=config['train']['betas'],
-                          eps=config['train']['eps'],
-                          weight_decay=config['train']['weight_decay'])
-dy_optimizer = optim.AdamW(model.Dy.parameters(),
-                          lr=config['train']['lr'],
-                          betas=config['train']['betas'],
-                          eps=config['train']['eps'],
-                          weight_decay=config['train']['weight_decay'])
-criterion = nn.BCELoss()
+gxy_optimizer = optim.Adam(model.Gxy.parameters(),
+                        lr=config['train']['lr'],
+                        betas=config['train']['betas'])
+gyx_optimizer = optim.Adam(model.Gyx.parameters(),
+                        lr=config['train']['lr'],
+                        betas=config['train']['betas'])
+dx_optimizer = optim.Adam(model.Dx.parameters(),
+                        lr=config['train']['lr'],
+                        betas=config['train']['betas'])
+dy_optimizer = optim.Adam(model.Dy.parameters(),
+                        lr=config['train']['lr'],
+                        betas=config['train']['betas'])
+mse_loss = nn.MSELoss()
+l1_loss = nn.L1Loss()
+
+fakeA_buffer = deque(maxlen=100)
+fakeB_buffer = deque(maxlen=100)
 
 # Training
 def train(epoch, model, realA, realB, gxy_optimizer, gyx_optimizer, dx_optimizer, dy_optimizer):
   model.train()
   
-  fakeA_buffer = deque(maxlen=100)
-  fakeB_buffer = deque(maxlen=100)
+  # Label
   batch_size = config['data']['batch_size']
+  valid = torch.ones(batch_size, 1, 16, 16, device=device)
+  fake = torch.ones(batch_size, 1, 16, 16, device=device)
   
-  for i in range(epoch):
-    fakeA = model.Gyx(realA)
-    fakeB = model.Gxy(realB)
-    
-    fakeA_buffer.append(fakeA)
-    fakeB_buffer.append(fakeB)
-    
-    fakeA_batch = random.sample(fakeA_buffer, 1)
-    fakeB_batch = random.sample(fakeB_buffer, 1)
-    
-    realA_score = model.Dx(realA)
-    fakeA_score = model.Dx(fakeA_batch)
-    
-    realB_score = model.Dy(realB)
-    fakeB_score = model.Dy(fakeB_batch)
-    
-    
-    
-    
-    # g_train_loss = 0.0
-    # d_train_loss = 0.0
-    # train_num = 0
-
-    # # Transfer data to device
-    # real_img = real_img.to(device)
-    # real_score = model.D(real_img)
-    # real_label = torch.ones(batch_size, 1, device=device)
-
-    # # Generate generated image
-    # z = 2 * torch.rand(batch_size, z_latent, device=device) - 1
-    # fake_img = model.G(z)
-    # fake_score = model.D(fake_img)
-    # fake_label = torch.zeros(batch_size, 1, device=device)
-    
-    # # Loss for the discriminator
-    # d_loss_real = criterion(real_score, real_label)
-    # d_loss_fake = criterion(fake_score, fake_label)
-    # d_loss = d_loss_real + d_loss_fake
-    
-    # # Training for the discriminator
-    # d_optimizer.zero_grad()
-    # d_loss.backward()
-    # d_optimizer.step()
-    
-    # # Generator
-    # # Get the fake images and scores
-    # z = 2 * torch.rand(batch_size, z_latent, device=device) - 1
-    # fake_img = model.G(z)
-    # fake_score = model.D(fake_img)
-    # real_label = torch.ones(batch_size, 1, device=device)
-    
-    # # Training for the generator
-    # g_loss = criterion(fake_score, real_label)
-    # g_optimizer.zero_grad()
-    # g_loss.backward()
-    # g_optimizer.step()
-
-    # # loss
-    # g_train_loss += g_loss.item()
-    # d_train_loss += d_loss.item()
-    # train_num += real_img.size(0)
-    
-  #   if i % config['others']['log_period'] == 0 and i != 0:
-  #     print(f'[{epoch}, {i}]\t Train loss: (G){g_train_loss / train_num:.5f}, (D){d_train_loss / train_num:.5f}')
+  realA = realA.unsqueeze(dim=0).to(device)
+  realB = realB.unsqueeze(dim=0).to(device)
   
-  # # Average loss
-  # d_train_loss /= train_num
+  fakeA = model.Gyx(realB)
+  fakeB = model.Gxy(realA)
   
-  return 0
+  # fakeA_buffer.append(fakeA)
+  # fakeB_buffer.append(fakeB)
+  
+  # fakeA = fakeA_buffer[random.randrange(len(fakeA_buffer))]
+  # fakeB = fakeB_buffer[random.randrange(len(fakeB_buffer))]
+  
+  realA_score = model.Dx(realA)
+  fakeA_score = model.Dx(fakeA)
+
+  realB_score = model.Dy(realB)
+  fakeB_score = model.Dy(fakeB)
+  
+  # Discriminator Dx (Validity)
+  # (torch.mean((realA_score - 1)**2) + torch.mean(fakeA_score**2))
+  realA_loss = mse_loss(realA_score, valid)
+  fakeA_loss = mse_loss(fakeA_score, fake)
+  dx_loss = (realA_loss + fakeA_loss).mean()
+  dx_optimizer.zero_grad()
+  dx_loss.backward()
+  dx_optimizer.step()
+  
+  # Discriminator Dy (Validity)
+  realB_loss = mse_loss(realB_score, valid)
+  fakeB_loss = mse_loss(fakeB_score, fake)
+  dy_loss = (realB_loss + fakeB_loss).mean()
+  dy_optimizer.zero_grad()
+  dy_loss.backward()
+  dy_optimizer.step()
+  
+  # Generator Gxy (Reconstruction and identity)
+  scoreB = model.Dy(model.Gxy(realA))
+  reconB = model.Gxy(model.Gyx(realB))
+  idenB = model.Gxy(realB)
+  gxy_loss = mse_loss(scoreB, valid) + l1_loss(realB, reconB) + l1_loss(realB, idenB)
+  gxy_optimizer.zero_grad()
+  gxy_loss.backward()
+  gxy_optimizer.step()
+  
+  # Generator Gyx (Reconstruction and identity)
+  scoreA = model.Dx(model.Gyx(realB))
+  reconA = model.Gyx(model.Gxy(realA))
+  idenA = model.Gyx(realA)
+  gyx_loss = mse_loss(scoreA, valid) + l1_loss(realA, reconA) + l1_loss(realA, idenA)
+  gyx_optimizer.zero_grad()
+  gyx_loss.backward()
+  gyx_optimizer.step()
+  
+  return dx_loss, dy_loss, gxy_loss, gyx_loss
 
 # Main
 if __name__ == '__main__':
   for epoch in range(config['train']['epochs']):  # loop over the dataset multiple times
     # Training
-    train_loss = train(epoch, model, img_refer, img_style, gxy_optimizer, gyx_optimizer, dx_optimizer, dy_optimizer)
+    dx_loss, dy_loss, gxy_loss, gyx_loss = train(epoch, model, imgA, imgB, gxy_optimizer, gyx_optimizer, dx_optimizer, dy_optimizer)
     
     # Print the log
-    print(f'Epoch: {epoch}\t Train loss: {train_loss:.5f}\t')
+    print(f'Epoch: {epoch}\t dx loss: {dx_loss:.5f}\t dy loss: {dy_loss:.5f}\t gxy loss: {gxy_loss:.5f}\t gyx loss: {gyx_loss:.5f}')
     
     # Save the model
-    save_model(model_name=config['save']['model_name'], epoch=epoch, model=model, optimizer=gxy_optimizer, loss=train_loss, config=config)
+    save_model(model_name=config['save']['model_name'], epoch=epoch, model=model, optimizer=gxy_optimizer, loss=gxy_loss, config=config)
     

@@ -2,8 +2,8 @@
 data:
   seed: 777
   batch_size: 1
-  img_refer_path: ''
-  img_style_path: ''
+  imgA_path: 'images/monet.jpg'
+  imgB_path: 'images/forest.jpg'
   img_size: [128, 128]
 
 # Model parameters
@@ -15,14 +15,13 @@ model:
   dis_conv_kernels: [3,3,3,3]
   dis_conv_strides: [2,2,2,1]
   dis_conv_pads: [1,1,1,1]
-  dis_norm: [False, True, True, True])
+  dis_norm: [False, True, True, True]
 
 # Training parameters
 train:
   epochs: 100
-  lr: 0.001
-  gen_iteration: 5
-  crt_clip_value: 0.005
+  lr: 0.0002
+  betas: [0.5, 0.999]
 
 # Save
 save:
