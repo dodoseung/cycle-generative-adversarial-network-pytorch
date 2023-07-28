@@ -2,8 +2,10 @@
 data:
   seed: 777
   batch_size: 1
-  imgA_path: 'images/monet.jpg'
-  imgB_path: 'images/forest.jpg'
+  data_path: '~/.pytorch/apple2orange'
+  shuffle: True
+  drop_last: True
+  num_workers: 4
   img_size: [128, 128]
 
 # Model parameters
@@ -19,7 +21,7 @@ model:
 
 # Training parameters
 train:
-  epochs: 100
+  epochs: 20
   lr: 0.0002
   betas: [0.5, 0.999]
 
@@ -29,4 +31,4 @@ save:
 
 # Other parameters
 others:
-  log_period: 10
+  log_period: 100
