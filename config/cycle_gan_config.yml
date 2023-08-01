@@ -1,7 +1,7 @@
 # Data parameters
 data:
   seed: 777
-  batch_size: 1
+  batch_size: 1024
   data_path: '~/.pytorch/apple2orange'
   shuffle: True
   drop_last: True
@@ -21,9 +21,12 @@ model:
 
 # Training parameters
 train:
-  epochs: 20
+  epochs: 100
   lr: 0.0002
   betas: [0.5, 0.999]
+  w_valid : 0.05
+  w_recon : 0.85
+  w_iden : 0.1
 
 # Save
 save:
@@ -31,4 +34,4 @@ save:
 
 # Other parameters
 others:
-  log_period: 100
+  log_period: 1

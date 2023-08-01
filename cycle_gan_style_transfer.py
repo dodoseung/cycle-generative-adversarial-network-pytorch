@@ -92,12 +92,17 @@ l1_loss = nn.L1Loss()
 
 fakeA_buffer = deque(maxlen=100)
 fakeB_buffer = deque(maxlen=100)
+w_valid = config['train']['w_valid']
+w_recon = config['train']['w_recon']
+w_iden = config['train']['w_iden']
 
 # Training
 def train(epoch, model, train_loaderA, train_loaderB, gxy_optimizer, gyx_optimizer, dx_optimizer, dy_optimizer):
   model.train()
   
   batch_size = config['data']['batch_size']
+  num_data = batch_size * config['others']['log_period']
+  
   valid = torch.ones(batch_size, 1, 16, 16, device=device)
   fake = torch.ones(batch_size, 1, 16, 16, device=device)
   
@@ -148,7 +153,7 @@ def train(epoch, model, train_loaderA, train_loaderB, gxy_optimizer, gyx_optimiz
     scoreB = model.Dy(model.Gxy(realA))
     reconB = model.Gxy(model.Gyx(realB))
     idenB = model.Gxy(realB)
-    gxy_loss = mse_loss(scoreB, valid) + l1_loss(realB, reconB) + l1_loss(realB, idenB)
+    gxy_loss = w_valid * mse_loss(scoreB, valid) + w_recon * l1_loss(realB, reconB) + w_iden * l1_loss(realB, idenB)
     gxy_optimizer.zero_grad()
     gxy_loss.backward()
     gxy_optimizer.step()
@@ -157,7 +162,7 @@ def train(epoch, model, train_loaderA, train_loaderB, gxy_optimizer, gyx_optimiz
     scoreA = model.Dx(model.Gyx(realB))
     reconA = model.Gyx(model.Gxy(realA))
     idenA = model.Gyx(realA)
-    gyx_loss = mse_loss(scoreA, valid) + l1_loss(realA, reconA) + l1_loss(realA, idenA)
+    gyx_loss = w_valid * mse_loss(scoreA, valid) + w_recon * l1_loss(realA, reconA) + w_iden * l1_loss(realA, idenA)
     gyx_optimizer.zero_grad()
     gyx_loss.backward()
     gyx_optimizer.step()
@@ -168,11 +173,11 @@ def train(epoch, model, train_loaderA, train_loaderB, gxy_optimizer, gyx_optimiz
     losses[3] += gyx_loss
     i = i + 1
     if i % config['others']['log_period'] == 0 and i != 0:
-      num_data = i * batch_size
+      
       print(f'[{epoch}, {i}]\t dx loss: {losses[0]/num_data:.5f}\t dy loss: {losses[1]/num_data:.5f}\t gxy loss: {losses[2]/num_data:.5f}\t gyx loss: {losses[3]/num_data:.5f}')
       losses = [0, 0, 0, 0]
   
-  return dx_loss, dy_loss, gxy_loss, gyx_loss
+  return losses[0]/num_data, losses[1]/num_data, losses[2]/num_data, losses[3]/num_data
 
 # Main
 if __name__ == '__main__':
@@ -184,5 +189,5 @@ if __name__ == '__main__':
     print(f'Epoch: {epoch}\t dx loss: {dx_loss:.5f}\t dy loss: {dy_loss:.5f}\t gxy loss: {gxy_loss:.5f}\t gyx loss: {gyx_loss:.5f}')
     
     # Save the model
-    save_model(model_name=config['save']['model_name'], epoch=epoch, model=model, optimizer=gxy_optimizer, loss=gxy_loss, config=config)
+    save_model(model_name=config['save']['model_name'], epoch=epoch, model=model, optimizer=gxy_optimizer, loss=dx_loss, config=config)
     
